@@ -19,10 +19,24 @@ def get_ai_response(user_message: str):
     add_message("user", user_message)
 
     messages = [
-        {
-            "role": "system",
-            "content": "You are a helpful AI assistant."
-        }
+                   {
+                       "role": "system",
+                       "content": """
+        You are an AI assistant with access to tools.
+
+        You can:
+        - read files
+        - write files
+        - list directories
+
+        When needed, respond in this format:
+
+        TOOL: tool_name
+        ARGS: {json}
+
+        If no tool is needed, respond normally.
+        """
+                   }
     ] + get_history()
 
     response = client.chat.completions.create(
