@@ -1,6 +1,7 @@
 import os
+from pathlib import Path
 
-BASE_DIR = os.abspath(".")
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 def read_file(path: str):
     """Read a file from the project safely"""
