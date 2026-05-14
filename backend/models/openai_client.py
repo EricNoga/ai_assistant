@@ -11,7 +11,7 @@ from backend.memory.vector_memory import (
     is_important,
     summarize_memory
 )
-from backend.orchestrator.tool_router import run_tool
+from backend.orchestrator.tool_router import run_python_code
 
 
 load_dotenv()
@@ -20,7 +20,7 @@ client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
-MAX_STEPS = 3
+MAX_STEPS = 5
 
 
 def create_plan(user_message: str):
@@ -155,6 +155,12 @@ ARGS: {"path":"backend"}
 
 TOOL: run_python_code
 ARGS: {"code":"print('hello')"}
+
+DEBUGGING RULES:
+- If run_python_code returns stderr, an error, or a nonzero returncode, analyze the failure.
+- Then produce corrected code and run run_python_code again.
+- Do not give up after the first failed run.
+- Only return a final answer after the code runs successfully or you clearly explain why it cannot.
 
 If no tool is needed:
 respond normally with the completed result.
