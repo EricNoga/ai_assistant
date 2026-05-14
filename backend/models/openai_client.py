@@ -4,17 +4,20 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from backend.memory.chat_memory import add_message, get_history
+from backend.memory.task_memory import create_task, update_task, get_task
 from backend.orchestrator.tool_router import run_tool
 
-# Load environment variables
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+MAX_STEPS = 3  # safety limit per task
+
+
+# -----------------------------
+# PLANNER (TASK GENERATION)
+# -----------------------------
 def create_plan(user_message: str):
-    """
-    Turns a user request into a step-by-step plan
-    """
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
@@ -22,15 +25,21 @@ def create_plan(user_message: str):
             {
                 "role": "system",
                 "content": """
-You are a planning agent.
+You are a task planner.
 
-Break the user request into simple numbered steps.
+Convert the user request into a JSON list of tasks.
 
-Rules:
-- Keep steps short
-- Be specific
-- Use 2–6 steps max
-- Focus on actions that can be executed using tools
+RULES:
+- Output ONLY valid JSON
+- Each task must have:
+  - "task": short description
+- 2–6 tasks max
+
+Example:
+[
+  {"task": "Read backend files"},
+  {"task": "Summarize project structure"}
+]
 """
             },
             {
@@ -42,89 +51,122 @@ Rules:
 
     return response.choices[0].message.content
 
-MAX_STEPS = 3  # safety limit to prevent infinite loops
 
+# -----------------------------
+# MAIN AGENT FUNCTION
+# -----------------------------
 def get_ai_response(user_message: str):
 
+    # Store user input
     add_message("user", user_message)
 
-    # ------------------------
-    # 1. CREATE PLAN
-    # ------------------------
-    plan = create_plan(user_message)
-    add_message("assistant", f"[PLAN]\n{plan}")
+    # -----------------------------
+    # 1. CREATE TASK PLAN
+    # -----------------------------
+    raw_plan = create_plan(user_message)
 
-    # Convert plan into execution prompt
-    execution_input = f"""
+    try:
+        task_list = json.loads(raw_plan)
+    except Exception:
+        return f"Planner returned invalid JSON:\n{raw_plan}"
+
+    task_ids = []
+
+    for t in task_list:
+        task_id = create_task(t["task"])
+        task_ids.append(task_id)
+
+    add_message("assistant", f"[TASKS CREATED]\n{task_list}")
+
+    final_outputs = []
+
+    # -----------------------------
+    # 2. EXECUTE EACH TASK
+    # -----------------------------
+    for task_id in task_ids:
+
+        task = get_task(task_id)
+
+        execution_prompt = f"""
 You are an execution agent.
 
-Follow this plan step-by-step:
+Complete this task:
+{task['description']}
 
-{plan}
-
-Use tools when needed.
-Return final result when complete.
+Use tools if needed.
+Return a clear final result.
 """
 
-    add_message("user", execution_input)
+        add_message("user", execution_prompt)
 
-    # ------------------------
-    # 2. EXECUTION LOOP
-    # ------------------------
-    for step in range(MAX_STEPS):
+        # -----------------------------
+        # EXECUTION LOOP PER TASK
+        # -----------------------------
+        for step in range(MAX_STEPS):
 
-        messages = [
-            {
-                "role": "system",
-                "content": """
-You are an execution agent.
+            messages = [
+                {
+                    "role": "system",
+                    "content": """
+You are an AI execution agent.
 
-You may use tools:
+AVAILABLE TOOLS:
 - read_file(path)
 - write_file(path, content)
 - list_files(path)
 
-If using tools, respond:
+If you need a tool respond EXACTLY:
 
 TOOL: tool_name
 ARGS: {"key": "value"}
+
+Otherwise respond with final answer.
 """
-            }
-        ] + get_history()
+                }
+            ] + get_history()
 
-        response = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=messages
-        )
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=messages
+            )
 
-        reply = response.choices[0].message.content
+            reply = response.choices[0].message.content
 
-        # ------------------------
-        # TOOL HANDLING
-        # ------------------------
-        if reply and reply.startswith("TOOL:"):
+            # -----------------------------
+            # TOOL EXECUTION BRANCH
+            # -----------------------------
+            if reply and reply.startswith("TOOL:"):
 
-            try:
-                lines = reply.split("\n")
+                try:
+                    lines = reply.split("\n")
 
-                tool_name = lines[0].replace("TOOL:", "").strip()
-                args = json.loads(lines[1].replace("ARGS:", "").strip())
+                    tool_name = lines[0].replace("TOOL:", "").strip()
+                    args = json.loads(lines[1].replace("ARGS:", "").strip())
 
-                tool_result = run_tool(tool_name, args)
+                    tool_result = run_tool(tool_name, args)
 
-                add_message("assistant", f"[Tool used: {tool_name}]")
-                add_message("user", f"Tool result: {tool_result}")
+                    # Feed tool result back into context
+                    add_message("user", f"Tool result: {tool_result}")
 
-            except Exception as e:
-                error = f"Tool error: {str(e)}"
-                add_message("assistant", error)
-                return error
+                except Exception as e:
+                    error_msg = f"Tool error: {str(e)}"
+                    add_message("assistant", error_msg)
+                    update_task(task_id, "failed", error_msg)
+                    final_outputs.append(error_msg)
+                    break
 
-        else:
-            # FINAL ANSWER
-            add_message("assistant", reply)
-            return reply
+            else:
+                # TASK COMPLETE
+                update_task(task_id, "done", reply)
+                add_message("assistant", reply)
+                final_outputs.append(reply)
+                break
 
-    fallback = "Task stopped: max steps reached."
-    add_message("assistant", fallback)
-    return fallback
+    # -----------------------------
+    # 3. FINAL RESPONSE
+    # -----------------------------
+    summary = "\n\n".join(final_outputs)
+
+    add_message("assistant", summary)
+
+    return summary
