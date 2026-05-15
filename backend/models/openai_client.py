@@ -18,6 +18,7 @@ from backend.memory.vector_memory import (
 )
 
 from backend.orchestrator.tool_router import run_tool
+from backend.tools.registry import get_tool_descriptions
 
 
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -130,14 +131,11 @@ Return a final answer when complete.
             messages = [
                 {
                     "role": "system",
-                    "content": """
+                    "content": f"""
 You are an autonomous AI execution agent.
 
 AVAILABLE TOOLS:
-- read_file(path)
-- write_file(path, content)
-- list_files(path)
-- run_python_code(code)
+{get_tool_descriptions()}
 
 TOOL USAGE RULES:
 
@@ -145,29 +143,25 @@ If a tool is needed,
 respond EXACTLY like this:
 
 TOOL: tool_name
-ARGS: {"key":"value"}
+ARGS: {{"key":"value"}}
 
 Examples:
 
 TOOL: read_file
-ARGS: {"path":"backend/api/main.py"}
+ARGS: {{"path":"backend/api/main.py"}}
 
 TOOL: list_files
-ARGS: {"path":"backend"}
+ARGS: {{"path":"backend"}}
 
 TOOL: run_python_code
-ARGS: {"code":"print('hello')"}
+ARGS: {{"code":"print('hello')"}}
 
 DEBUGGING RULES:
-- If run_python_code returns stderr,
-  an error, or nonzero returncode:
-  analyze the failure.
+- If run_python_code returns stderr, an error, or nonzero returncode, analyze the failure.
 - Attempt to correct the code.
 - Re-run the corrected code.
 - Do not stop after the first failure.
-- Only return a final answer when:
-  - code executes successfully
-  - OR a clear explanation is given.
+- Only return a final answer when code executes successfully or a clear explanation is given.
 
 If no tool is needed:
 respond normally with the completed result.

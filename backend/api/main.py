@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from backend.core.config import DEFAULT_MODEL, MAX_AGENT_STEPS, OPENAI_API_KEY
 from backend.models.openai_client import get_ai_response
 from backend.memory.chat_memory import get_history, clear_history
 from backend.memory.task_memory import list_tasks
 from backend.memory.vector_memory import search_memory, get_all_memories
-from backend.core.config import DEFAULT_MODEL, MAX_AGENT_STEPS, OPENAI_API_KEY
+from backend.tools.registry import get_tool_names
 
 
 app = FastAPI(
@@ -81,6 +82,7 @@ async def memory_all():
         "memory": get_all_memories()
     }
 
+
 @app.get("/status")
 async def status():
     return {
@@ -88,10 +90,5 @@ async def status():
         "model": DEFAULT_MODEL,
         "max_agent_steps": MAX_AGENT_STEPS,
         "openai_api_key_loaded": bool(OPENAI_API_KEY),
-        "available_tools": [
-            "read_file",
-            "write_file",
-            "list_files",
-            "run_python_code"
-        ]
+        "available_tools": get_tool_names()
     }
