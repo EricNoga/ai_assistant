@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from backend.models.openai_client import get_ai_response
 from backend.memory.chat_memory import get_history, clear_history
 from backend.memory.task_memory import list_tasks
+from backend.memory.vector_memory import search_memory, get_all_memories
 
 
 app = FastAPI(
@@ -15,6 +16,11 @@ app = FastAPI(
 
 class ChatRequest(BaseModel):
     message: str
+
+
+class MemorySearchRequest(BaseModel):
+    query: str
+    n_results: int = 3
 
 
 @app.get("/")
@@ -53,4 +59,23 @@ async def clear_chat_history():
 async def tasks():
     return {
         "tasks": list_tasks()
+    }
+
+
+@app.post("/memory/search")
+async def memory_search(request: MemorySearchRequest):
+    results = search_memory(
+        request.query,
+        request.n_results
+    )
+
+    return {
+        "results": results
+    }
+
+
+@app.get("/memory/all")
+async def memory_all():
+    return {
+        "memory": get_all_memories()
     }
