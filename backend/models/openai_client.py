@@ -1,35 +1,57 @@
-import os
 import json
-from dotenv import load_dotenv
 from openai import OpenAI
 
-from backend.memory.chat_memory import add_message, get_history
-from backend.memory.task_memory import create_task, update_task, get_task
+from backend.core.config import (
+    OPENAI_API_KEY,
+    DEFAULT_MODEL,
+    MAX_AGENT_STEPS
+)
+
+from backend.memory.chat_memory import (
+    add_message,
+    get_history
+)
+
+from backend.memory.task_memory import (
+    create_task,
+    update_task,
+    get_task
+)
+
 from backend.memory.vector_memory import (
     add_memory,
     search_memory,
     is_important,
     summarize_memory
 )
-from backend.orchestrator.tool_router import run_python_code
+
+from backend.orchestrator.tool_router import run_tool
 
 
-load_dotenv()
+# -----------------------------------
+# OPENAI CLIENT
+# -----------------------------------
 
 client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
+    api_key=OPENAI_API_KEY
 )
 
-MAX_STEPS = 5
+# Configurable max execution loops
+MAX_STEPS = MAX_AGENT_STEPS
 
+
+# -----------------------------------
+# TASK PLANNER
+# -----------------------------------
 
 def create_plan(user_message: str):
     """
-    Convert a user request into structured executable tasks.
+    Convert user request into
+    structured executable tasks
     """
 
     response = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=DEFAULT_MODEL,
         messages=[
             {
                 "role": "system",
@@ -65,6 +87,10 @@ Example:
     return response.choices[0].message.content
 
 
+# -----------------------------------
+# MAIN AGENT FUNCTION
+# -----------------------------------
+
 def get_ai_response(user_message: str):
     """
     Main AI agent function:
@@ -75,22 +101,63 @@ def get_ai_response(user_message: str):
     - stores important results
     """
 
-    add_message("user", user_message)
+    # -----------------------------------
+    # STORE USER MESSAGE
+    # -----------------------------------
 
-    relevant_memory = search_memory(user_message)
-    memory_context = "\n".join(relevant_memory) if relevant_memory else ""
+    add_message(
+        "user",
+        user_message
+    )
 
-    raw_plan = create_plan(user_message)
+    # -----------------------------------
+    # LONG-TERM MEMORY SEARCH
+    # -----------------------------------
+
+    relevant_memory = search_memory(
+        user_message
+    )
+
+    memory_context = ""
+
+    if relevant_memory:
+        memory_context = "\n".join(
+            relevant_memory
+        )
+
+    # -----------------------------------
+    # CREATE TASK PLAN
+    # -----------------------------------
+
+    raw_plan = create_plan(
+        user_message
+    )
 
     try:
-        task_list = json.loads(raw_plan)
+
+        task_list = json.loads(
+            raw_plan
+        )
+
     except Exception:
-        return f"Planner returned invalid JSON:\n{raw_plan}"
+
+        return (
+            "Planner returned invalid JSON:\n"
+            f"{raw_plan}"
+        )
+
+    # -----------------------------------
+    # CREATE TASK OBJECTS
+    # -----------------------------------
 
     task_ids = []
 
     for task in task_list:
-        task_id = create_task(task["task"])
+
+        task_id = create_task(
+            task["task"]
+        )
+
         task_ids.append(task_id)
 
     add_message(
@@ -101,7 +168,12 @@ def get_ai_response(user_message: str):
 
     final_outputs = []
 
+    # -----------------------------------
+    # EXECUTE TASKS
+    # -----------------------------------
+
     for task_id in task_ids:
+
         task = get_task(task_id)
 
         if not task:
@@ -123,9 +195,17 @@ Use tools if needed.
 Return a final answer when complete.
 """
 
-        add_message("user", execution_prompt)
+        add_message(
+            "user",
+            execution_prompt
+        )
+
+        # -----------------------------------
+        # MULTI-STEP EXECUTION LOOP
+        # -----------------------------------
 
         for step in range(MAX_STEPS):
+
             messages = [
                 {
                     "role": "system",
@@ -140,7 +220,8 @@ AVAILABLE TOOLS:
 
 TOOL USAGE RULES:
 
-If a tool is needed, respond EXACTLY like this:
+If a tool is needed,
+respond EXACTLY like this:
 
 TOOL: tool_name
 ARGS: {"key":"value"}
@@ -157,10 +238,15 @@ TOOL: run_python_code
 ARGS: {"code":"print('hello')"}
 
 DEBUGGING RULES:
-- If run_python_code returns stderr, an error, or a nonzero returncode, analyze the failure.
-- Then produce corrected code and run run_python_code again.
-- Do not give up after the first failed run.
-- Only return a final answer after the code runs successfully or you clearly explain why it cannot.
+- If run_python_code returns stderr,
+  an error, or nonzero returncode:
+  analyze the failure.
+- Attempt to correct the code.
+- Re-run the corrected code.
+- Do not stop after the first failure.
+- Only return a final answer when:
+  - code executes successfully
+  - OR a clear explanation is given.
 
 If no tool is needed:
 respond normally with the completed result.
@@ -168,18 +254,40 @@ respond normally with the completed result.
                 }
             ] + get_history()
 
+            # -----------------------------------
+            # CALL MODEL
+            # -----------------------------------
+
             response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model=DEFAULT_MODEL,
                 messages=messages
             )
 
-            reply = response.choices[0].message.content
+            reply = (
+                response
+                .choices[0]
+                .message
+                .content
+            )
 
-            if reply and reply.startswith("TOOL:"):
+            # -----------------------------------
+            # TOOL EXECUTION
+            # -----------------------------------
+
+            if (
+                reply
+                and reply.startswith("TOOL:")
+            ):
+
                 try:
+
                     lines = reply.split("\n")
 
-                    tool_name = lines[0].replace("TOOL:", "").strip()
+                    tool_name = (
+                        lines[0]
+                        .replace("TOOL:", "")
+                        .strip()
+                    )
 
                     args = json.loads(
                         lines[1]
@@ -187,20 +295,30 @@ respond normally with the completed result.
                         .strip()
                     )
 
-                    tool_result = run_tool(tool_name, args)
+                    # Execute tool
+                    tool_result = run_tool(
+                        tool_name,
+                        args
+                    )
 
+                    # Store tool usage
                     add_message(
                         "assistant",
                         f"[USED TOOL: {tool_name}]"
                     )
 
+                    # Feed result back
                     add_message(
                         "user",
                         f"Tool result:\n{tool_result}"
                     )
 
                 except Exception as e:
-                    error_msg = f"Tool execution error: {str(e)}"
+
+                    error_msg = (
+                        "Tool execution error: "
+                        f"{str(e)}"
+                    )
 
                     update_task(
                         task_id,
@@ -208,20 +326,41 @@ respond normally with the completed result.
                         error_msg
                     )
 
-                    add_message("assistant", error_msg)
-                    final_outputs.append(error_msg)
+                    add_message(
+                        "assistant",
+                        error_msg
+                    )
+
+                    final_outputs.append(
+                        error_msg
+                    )
 
                     break
 
             else:
+
+                # -----------------------------------
+                # TASK COMPLETED
+                # -----------------------------------
+
                 update_task(
                     task_id,
                     "done",
                     reply
                 )
 
-                add_message("assistant", reply)
-                final_outputs.append(reply)
+                add_message(
+                    "assistant",
+                    reply
+                )
+
+                final_outputs.append(
+                    reply
+                )
+
+                # -----------------------------------
+                # SMART LONG-TERM MEMORY STORAGE
+                # -----------------------------------
 
                 memory_text = f"""
 USER REQUEST:
@@ -231,8 +370,14 @@ TASK RESULT:
 {reply}
 """
 
+                # Only store important memories
                 if is_important(memory_text):
-                    summarized_memory = summarize_memory([memory_text])
+
+                    summarized_memory = (
+                        summarize_memory(
+                            [memory_text]
+                        )
+                    )
 
                     add_memory(
                         text=summarized_memory,
@@ -243,8 +388,17 @@ TASK RESULT:
 
                 break
 
-    final_response = "\n\n".join(final_outputs)
+    # -----------------------------------
+    # FINAL RESPONSE
+    # -----------------------------------
 
-    add_message("assistant", final_response)
+    final_response = "\n\n".join(
+        final_outputs
+    )
+
+    add_message(
+        "assistant",
+        final_response
+    )
 
     return final_response
