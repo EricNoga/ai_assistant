@@ -1,52 +1,34 @@
-import subprocess
-import tempfile
-import os
+from backend.tools.file_system import read_file, write_file, list_files
+from backend.sandbox.python_runner import run_python_code
 
 
-def run_python_code(code: str):
+def run_tool(tool_name: str, args: dict):
     """
-    Safely execute Python code
-    in a temporary sandbox file
+    Routes AI tool requests to backend functions.
     """
 
-    try:
+    if args is None:
+        args = {}
 
-        # Create temp file
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".py",
-            delete=False
-        ) as temp_file:
-
-            temp_file.write(code)
-
-            temp_path = temp_file.name
-
-        # Execute with timeout
-        result = subprocess.run(
-            ["python", temp_path],
-            capture_output=True,
-            text=True,
-            timeout=10
+    if tool_name == "read_file":
+        return read_file(
+            args.get("path")
         )
 
-        # Cleanup temp file
-        os.remove(temp_path)
+    if tool_name == "write_file":
+        return write_file(
+            args.get("path"),
+            args.get("content")
+        )
 
-        return {
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "returncode": result.returncode
-        }
+    if tool_name == "list_files":
+        return list_files(
+            args.get("path", ".")
+        )
 
-    except subprocess.TimeoutExpired:
+    if tool_name == "run_python_code":
+        return run_python_code(
+            args.get("code", "")
+        )
 
-        return {
-            "error": "Execution timed out"
-        }
-
-    except Exception as e:
-
-        return {
-            "error": str(e)
-        }
+    return f"Unknown tool requested: {tool_name}"

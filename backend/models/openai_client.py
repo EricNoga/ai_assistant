@@ -6,18 +6,10 @@ from backend.core.config import (
     DEFAULT_MODEL,
     MAX_AGENT_STEPS
 )
+from backend.core.logger import logger
 
-from backend.memory.chat_memory import (
-    add_message,
-    get_history
-)
-
-from backend.memory.task_memory import (
-    create_task,
-    update_task,
-    get_task
-)
-
+from backend.memory.chat_memory import add_message, get_history
+from backend.memory.task_memory import create_task, update_task, get_task
 from backend.memory.vector_memory import (
     add_memory,
     search_memory,
@@ -28,28 +20,12 @@ from backend.memory.vector_memory import (
 from backend.orchestrator.tool_router import run_tool
 
 
-# -----------------------------------
-# OPENAI CLIENT
-# -----------------------------------
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-client = OpenAI(
-    api_key=OPENAI_API_KEY
-)
-
-# Configurable max execution loops
 MAX_STEPS = MAX_AGENT_STEPS
 
 
-# -----------------------------------
-# TASK PLANNER
-# -----------------------------------
-
 def create_plan(user_message: str):
-    """
-    Convert user request into
-    structured executable tasks
-    """
-
     response = client.chat.completions.create(
         model=DEFAULT_MODEL,
         messages=[
@@ -87,78 +63,28 @@ Example:
     return response.choices[0].message.content
 
 
-# -----------------------------------
-# MAIN AGENT FUNCTION
-# -----------------------------------
-
 def get_ai_response(user_message: str):
-    """
-    Main AI agent function:
-    - stores chat memory
-    - retrieves long-term memory
-    - creates tasks
-    - executes tools
-    - stores important results
-    """
+    add_message("user", user_message)
 
-    # -----------------------------------
-    # STORE USER MESSAGE
-    # -----------------------------------
+    relevant_memory = search_memory(user_message)
+    memory_context = "\n".join(relevant_memory) if relevant_memory else ""
 
-    add_message(
-        "user",
-        user_message
-    )
-
-    # -----------------------------------
-    # LONG-TERM MEMORY SEARCH
-    # -----------------------------------
-
-    relevant_memory = search_memory(
-        user_message
-    )
-
-    memory_context = ""
-
-    if relevant_memory:
-        memory_context = "\n".join(
-            relevant_memory
-        )
-
-    # -----------------------------------
-    # CREATE TASK PLAN
-    # -----------------------------------
-
-    raw_plan = create_plan(
-        user_message
-    )
+    raw_plan = create_plan(user_message)
+    logger.info("Planner raw output: %s", raw_plan)
 
     try:
-
-        task_list = json.loads(
-            raw_plan
-        )
-
+        task_list = json.loads(raw_plan)
     except Exception:
-
-        return (
-            "Planner returned invalid JSON:\n"
-            f"{raw_plan}"
-        )
-
-    # -----------------------------------
-    # CREATE TASK OBJECTS
-    # -----------------------------------
+        logger.error("Planner returned invalid JSON: %s", raw_plan)
+        return f"Planner returned invalid JSON:\n{raw_plan}"
 
     task_ids = []
 
     for task in task_list:
-
-        task_id = create_task(
-            task["task"]
-        )
-
+        task_id = create_task(task["task"])
         task_ids.append(task_id)
+
+    logger.info("Created %s task(s)", len(task_ids))
 
     add_message(
         "assistant",
@@ -168,15 +94,11 @@ def get_ai_response(user_message: str):
 
     final_outputs = []
 
-    # -----------------------------------
-    # EXECUTE TASKS
-    # -----------------------------------
-
     for task_id in task_ids:
-
         task = get_task(task_id)
 
         if not task:
+            logger.warning("Task not found: %s", task_id)
             continue
 
         execution_prompt = f"""
@@ -195,16 +117,15 @@ Use tools if needed.
 Return a final answer when complete.
 """
 
-        add_message(
-            "user",
-            execution_prompt
-        )
-
-        # -----------------------------------
-        # MULTI-STEP EXECUTION LOOP
-        # -----------------------------------
+        add_message("user", execution_prompt)
 
         for step in range(MAX_STEPS):
+            logger.info(
+                "Executing task %s | step %s/%s",
+                task_id,
+                step + 1,
+                MAX_STEPS
+            )
 
             messages = [
                 {
@@ -254,40 +175,18 @@ respond normally with the completed result.
                 }
             ] + get_history()
 
-            # -----------------------------------
-            # CALL MODEL
-            # -----------------------------------
-
             response = client.chat.completions.create(
                 model=DEFAULT_MODEL,
                 messages=messages
             )
 
-            reply = (
-                response
-                .choices[0]
-                .message
-                .content
-            )
+            reply = response.choices[0].message.content
 
-            # -----------------------------------
-            # TOOL EXECUTION
-            # -----------------------------------
-
-            if (
-                reply
-                and reply.startswith("TOOL:")
-            ):
-
+            if reply and reply.startswith("TOOL:"):
                 try:
-
                     lines = reply.split("\n")
 
-                    tool_name = (
-                        lines[0]
-                        .replace("TOOL:", "")
-                        .strip()
-                    )
+                    tool_name = lines[0].replace("TOOL:", "").strip()
 
                     args = json.loads(
                         lines[1]
@@ -295,30 +194,30 @@ respond normally with the completed result.
                         .strip()
                     )
 
-                    # Execute tool
-                    tool_result = run_tool(
+                    logger.info(
+                        "Running tool: %s with args: %s",
                         tool_name,
                         args
                     )
 
-                    # Store tool usage
+                    tool_result = run_tool(tool_name, args)
+
+                    logger.info("Tool result: %s", tool_result)
+
                     add_message(
                         "assistant",
                         f"[USED TOOL: {tool_name}]"
                     )
 
-                    # Feed result back
                     add_message(
                         "user",
                         f"Tool result:\n{tool_result}"
                     )
 
                 except Exception as e:
+                    error_msg = f"Tool execution error: {str(e)}"
 
-                    error_msg = (
-                        "Tool execution error: "
-                        f"{str(e)}"
-                    )
+                    logger.error("Tool execution failed: %s", str(e))
 
                     update_task(
                         task_id,
@@ -326,41 +225,20 @@ respond normally with the completed result.
                         error_msg
                     )
 
-                    add_message(
-                        "assistant",
-                        error_msg
-                    )
-
-                    final_outputs.append(
-                        error_msg
-                    )
+                    add_message("assistant", error_msg)
+                    final_outputs.append(error_msg)
 
                     break
 
             else:
-
-                # -----------------------------------
-                # TASK COMPLETED
-                # -----------------------------------
-
                 update_task(
                     task_id,
                     "done",
                     reply
                 )
 
-                add_message(
-                    "assistant",
-                    reply
-                )
-
-                final_outputs.append(
-                    reply
-                )
-
-                # -----------------------------------
-                # SMART LONG-TERM MEMORY STORAGE
-                # -----------------------------------
+                add_message("assistant", reply)
+                final_outputs.append(reply)
 
                 memory_text = f"""
 USER REQUEST:
@@ -370,14 +248,8 @@ TASK RESULT:
 {reply}
 """
 
-                # Only store important memories
                 if is_important(memory_text):
-
-                    summarized_memory = (
-                        summarize_memory(
-                            [memory_text]
-                        )
-                    )
+                    summarized_memory = summarize_memory([memory_text])
 
                     add_memory(
                         text=summarized_memory,
@@ -386,19 +258,12 @@ TASK RESULT:
                         }
                     )
 
+                    logger.info("Stored important memory")
+
                 break
 
-    # -----------------------------------
-    # FINAL RESPONSE
-    # -----------------------------------
+    final_response = "\n\n".join(final_outputs)
 
-    final_response = "\n\n".join(
-        final_outputs
-    )
-
-    add_message(
-        "assistant",
-        final_response
-    )
+    add_message("assistant", final_response)
 
     return final_response
