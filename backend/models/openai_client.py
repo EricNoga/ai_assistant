@@ -1,5 +1,8 @@
 import json
+
 from openai import OpenAI
+from openai import OpenAIError
+from openai import RateLimitError
 
 from backend.core.config import (
     OPENAI_API_KEY,
@@ -57,12 +60,13 @@ def create_plan(
     user_message: str,
     selected_agents: list
 ):
-    response = client.chat.completions.create(
-        model=DEFAULT_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": f"""
+    try:
+        response = client.chat.completions.create(
+            model=DEFAULT_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"""
 You are an agent-aware task planner.
 
 Available agents for this request:
@@ -87,47 +91,89 @@ RULES:
 
 Example:
 [
-  {{"task": "Analyze security log for suspicious activity", "agent": "cybersecurity"}},
-  {{"task": "Write a Python parser for similar logs", "agent": "coding"}},
-  {{"task": "Create a visual dashboard concept", "agent": "media"}}
+  {{"task": "Analyze security log", "agent": "cybersecurity"}},
+  {{"task": "Write parser", "agent": "coding"}}
 ]
 """
-            },
+                },
+                {
+                    "role": "user",
+                    "content": user_message
+                }
+            ]
+        )
+
+        return response.choices[0].message.content
+
+    except RateLimitError as e:
+        logger.error(
+            "OpenAI quota/rate limit error: %s",
+            str(e)
+        )
+
+        fallback_plan = [
             {
-                "role": "user",
-                "content": user_message
+                "task": user_message,
+                "agent": selected_agents[0]
             }
         ]
-    )
 
-    return response.choices[0].message.content
+        return json.dumps(
+            fallback_plan
+        )
+
+    except OpenAIError as e:
+        logger.error(
+            "OpenAI API error: %s",
+            str(e)
+        )
+
+        fallback_plan = [
+            {
+                "task": user_message,
+                "agent": selected_agents[0]
+            }
+        ]
+
+        return json.dumps(
+            fallback_plan
+        )
 
 
 def review_final_response(
     user_message: str,
     draft_response: str
 ):
-    response = client.chat.completions.create(
-        model=DEFAULT_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": get_reviewer_agent_prompt()
-            },
-            {
-                "role": "user",
-                "content": f"""
+    try:
+        response = client.chat.completions.create(
+            model=DEFAULT_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": get_reviewer_agent_prompt()
+                },
+                {
+                    "role": "user",
+                    "content": f"""
 Original user request:
 {user_message}
 
 Draft response:
 {draft_response}
 """
-            }
-        ]
-    )
+                }
+            ]
+        )
 
-    return response.choices[0].message.content
+        return response.choices[0].message.content
+
+    except Exception as e:
+        logger.error(
+            "Reviewer agent failed: %s",
+            str(e)
+        )
+
+        return draft_response
 
 
 def get_system_prompt(selected_agent: str):
@@ -346,17 +392,42 @@ Return a final answer when complete.
                 }
             ] + get_history()
 
-            response = client.chat.completions.create(
-                model=DEFAULT_MODEL,
-                messages=messages
-            )
+            try:
+                response = client.chat.completions.create(
+                    model=DEFAULT_MODEL,
+                    messages=messages
+                )
 
-            reply = (
-                response
-                .choices[0]
-                .message
-                .content
-            )
+                reply = (
+                    response
+                    .choices[0]
+                    .message
+                    .content
+                )
+
+            except RateLimitError as e:
+                logger.error(
+                    "Run %s | OpenAI quota exceeded: %s",
+                    run_id,
+                    str(e)
+                )
+
+                reply = (
+                    "OpenAI quota exceeded. "
+                    "Switch to mock mode or add API credits."
+                )
+
+            except OpenAIError as e:
+                logger.error(
+                    "Run %s | OpenAI API error: %s",
+                    run_id,
+                    str(e)
+                )
+
+                reply = (
+                    "OpenAI API error occurred. "
+                    "Check your API key, billing, model name, or network connection."
+                )
 
             if (
                 reply
