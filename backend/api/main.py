@@ -1,11 +1,17 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from backend.core.config import DEFAULT_MODEL, MAX_AGENT_STEPS, OPENAI_API_KEY
+from backend.core.config import (
+    DEFAULT_MODEL,
+    MAX_AGENT_STEPS,
+    OPENAI_API_KEY
+)
+
 from backend.models.openai_client import get_ai_response
 from backend.memory.chat_memory import get_history, clear_history
 from backend.memory.task_memory import list_tasks
 from backend.memory.vector_memory import search_memory, get_all_memories
+from backend.memory.run_memory import list_runs, get_run
 from backend.tools.registry import get_tool_names
 
 
@@ -34,7 +40,9 @@ async def root():
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
-    ai_response = get_ai_response(request.message)
+    ai_response = get_ai_response(
+        request.message
+    )
 
     return {
         "response": ai_response
@@ -61,6 +69,20 @@ async def clear_chat_history():
 async def tasks():
     return {
         "tasks": list_tasks()
+    }
+
+
+@app.get("/runs")
+async def runs():
+    return {
+        "runs": list_runs()
+    }
+
+
+@app.get("/runs/{run_id}")
+async def run_detail(run_id: str):
+    return {
+        "run": get_run(run_id)
     }
 
 

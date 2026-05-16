@@ -20,6 +20,13 @@ from backend.memory.task_memory import (
     get_task
 )
 
+from backend.memory.run_memory import (
+    create_run,
+    add_task_to_run,
+    complete_run,
+    fail_run
+)
+
 from backend.memory.vector_memory import (
     add_memory,
     search_memory,
@@ -36,6 +43,7 @@ from backend.agents.coding_agent import get_coding_agent_prompt
 from backend.agents.general_agent import get_general_agent_prompt
 from backend.agents.cybersecurity_agent import get_cybersecurity_agent_prompt
 from backend.agents.media_agent import get_media_agent_prompt
+from backend.agents.reviewer_agent import get_reviewer_agent_prompt
 
 
 client = OpenAI(
@@ -95,6 +103,33 @@ Example:
     return response.choices[0].message.content
 
 
+def review_final_response(
+    user_message: str,
+    draft_response: str
+):
+    response = client.chat.completions.create(
+        model=DEFAULT_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": get_reviewer_agent_prompt()
+            },
+            {
+                "role": "user",
+                "content": f"""
+Original user request:
+{user_message}
+
+Draft response:
+{draft_response}
+"""
+            }
+        ]
+    )
+
+    return response.choices[0].message.content
+
+
 def get_system_prompt(selected_agent: str):
     tool_descriptions = get_tool_descriptions()
 
@@ -133,6 +168,16 @@ def get_ai_response(user_message: str):
         user_message
     )
 
+    run_id = create_run(
+        user_message,
+        selected_agents
+    )
+
+    logger.info(
+        "Created run: %s",
+        run_id
+    )
+
     logger.info(
         "Selected agents: %s",
         selected_agents
@@ -165,18 +210,24 @@ def get_ai_response(user_message: str):
         )
 
     except Exception:
+        error_response = (
+            "Planner returned invalid JSON:\n"
+            f"{raw_plan}"
+        )
+
         logger.error(
             "Planner returned invalid JSON: %s",
             raw_plan
         )
 
-        return (
-            "Planner returned invalid JSON:\n"
-            f"{raw_plan}"
+        fail_run(
+            run_id,
+            error_response
         )
 
-    task_ids = []
+        return error_response
 
+    task_ids = []
     task_agent_map = {}
 
     for task in task_list:
@@ -200,6 +251,11 @@ def get_ai_response(user_message: str):
         )
 
         task_ids.append(
+            task_id
+        )
+
+        add_task_to_run(
+            run_id,
             task_id
         )
 
@@ -245,6 +301,9 @@ def get_ai_response(user_message: str):
         execution_prompt = f"""
 You are an execution agent.
 
+Run ID:
+{run_id}
+
 Available agents for this request:
 {selected_agents}
 
@@ -271,7 +330,8 @@ Return a final answer when complete.
 
         for step in range(MAX_STEPS):
             logger.info(
-                "Executing task %s | step %s/%s",
+                "Run %s | task %s | step %s/%s",
+                run_id,
                 task_id,
                 step + 1,
                 MAX_STEPS
@@ -318,7 +378,8 @@ Return a final answer when complete.
                     )
 
                     logger.info(
-                        "Running tool: %s with args: %s",
+                        "Run %s | running tool: %s with args: %s",
+                        run_id,
                         tool_name,
                         args
                     )
@@ -329,7 +390,8 @@ Return a final answer when complete.
                     )
 
                     logger.info(
-                        "Tool result: %s",
+                        "Run %s | tool result: %s",
+                        run_id,
                         tool_result
                     )
 
@@ -350,7 +412,8 @@ Return a final answer when complete.
                     )
 
                     logger.error(
-                        "Tool execution failed: %s",
+                        "Run %s | tool execution failed: %s",
+                        run_id,
                         str(e)
                     )
 
@@ -391,6 +454,9 @@ Return a final answer when complete.
 USER REQUEST:
 {user_message}
 
+RUN ID:
+{run_id}
+
 SELECTED AGENTS:
 {selected_agents}
 
@@ -412,23 +478,35 @@ TASK RESULT:
                         text=summarized_memory,
                         metadata={
                             "type": "important_memory",
-                            "agent": selected_agent
+                            "agent": selected_agent,
+                            "run_id": run_id
                         }
                     )
 
                     logger.info(
-                        "Stored important memory"
+                        "Run %s | stored important memory",
+                        run_id
                     )
 
                 break
 
-    final_response = "\n\n".join(
+    draft_response = "\n\n".join(
         final_outputs
+    )
+
+    reviewed_response = review_final_response(
+        user_message,
+        draft_response
+    )
+
+    complete_run(
+        run_id,
+        reviewed_response
     )
 
     add_message(
         "assistant",
-        final_response
+        reviewed_response
     )
 
-    return final_response
+    return reviewed_response
