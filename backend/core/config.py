@@ -30,6 +30,11 @@ MEMORY_DB_PATH = os.getenv(
 
 USE_MOCK_AI = AI_PROVIDER == "mock"
 
+ALLOW_MEDIUM_RISK_TOOLS = os.getenv(
+    "ALLOW_MEDIUM_RISK_TOOLS",
+    "true"
+).lower() == "true"
+
 ALLOW_HIGH_RISK_TOOLS = os.getenv(
     "ALLOW_HIGH_RISK_TOOLS",
     "false"

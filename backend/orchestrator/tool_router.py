@@ -1,4 +1,7 @@
-from backend.core.config import ALLOW_HIGH_RISK_TOOLS
+from backend.core.config import (
+    ALLOW_MEDIUM_RISK_TOOLS,
+    ALLOW_HIGH_RISK_TOOLS
+)
 
 from backend.tools.file_system import read_file, write_file, list_files
 from backend.sandbox.python_runner import run_python_code
@@ -22,6 +25,20 @@ TOOL_FUNCTIONS = {
 }
 
 
+def _is_tool_allowed(tool_name: str):
+    permission_level = get_tool_permission_level(
+        tool_name
+    )
+
+    if permission_level == "high":
+        return ALLOW_HIGH_RISK_TOOLS
+
+    if permission_level == "medium":
+        return ALLOW_MEDIUM_RISK_TOOLS
+
+    return True
+
+
 def run_tool(tool_name: str, args: dict):
     """
     Routes AI tool requests to backend functions with permission checks.
@@ -33,12 +50,14 @@ def run_tool(tool_name: str, args: dict):
     if tool_name not in TOOL_FUNCTIONS:
         return f"Unknown tool requested: {tool_name}"
 
-    permission_level = get_tool_permission_level(tool_name)
+    if not _is_tool_allowed(tool_name):
+        permission_level = get_tool_permission_level(
+            tool_name
+        )
 
-    if permission_level == "high" and not ALLOW_HIGH_RISK_TOOLS:
         return (
-            f"Tool blocked: {tool_name} requires high-risk tool permission. "
-            "Set ALLOW_HIGH_RISK_TOOLS=true to enable it."
+            f"Tool blocked: {tool_name} requires "
+            f"{permission_level}-risk tool permission."
         )
 
     try:
