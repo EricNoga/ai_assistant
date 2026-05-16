@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -17,10 +19,17 @@ from backend.memory.run_memory import list_runs, get_run
 from backend.tools.registry import get_tool_names
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    bootstrap_project()
+    yield
+
+
 app = FastAPI(
     title="AI Assistant",
     description="Modular AI Assistant Backend",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 
@@ -31,11 +40,6 @@ class ChatRequest(BaseModel):
 class MemorySearchRequest(BaseModel):
     query: str
     n_results: int = 3
-
-
-@app.on_event("startup")
-async def startup_event():
-    bootstrap_project()
 
 
 @app.get("/")
