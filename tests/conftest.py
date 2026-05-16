@@ -10,4 +10,5 @@ sys.path.insert(
     str(PROJECT_ROOT)
 )
 
+os.environ["AI_PROVIDER"] = "mock"
 os.environ["USE_MOCK_AI"] = "true"
