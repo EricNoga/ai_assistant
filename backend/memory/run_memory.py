@@ -32,6 +32,7 @@ runs = _load_runs()
 
 def create_run(user_message: str, selected_agents: list):
     run_id = str(uuid.uuid4())
+    now = datetime.now()
 
     runs[run_id] = {
         "id": run_id,
@@ -39,8 +40,9 @@ def create_run(user_message: str, selected_agents: list):
         "selected_agents": selected_agents,
         "task_ids": [],
         "status": "running",
-        "created_at": datetime.now().isoformat(),
+        "created_at": now.isoformat(),
         "completed_at": None,
+        "duration_seconds": None,
         "final_response": None
     }
 
@@ -52,14 +54,29 @@ def create_run(user_message: str, selected_agents: list):
 def add_task_to_run(run_id: str, task_id: str):
     if run_id in runs:
         runs[run_id]["task_ids"].append(task_id)
-
         _save_runs(runs)
+
+
+def _calculate_duration(run_id: str):
+    created_at = runs[run_id].get("created_at")
+
+    if not created_at:
+        return None
+
+    start = datetime.fromisoformat(created_at)
+    end = datetime.now()
+
+    return round(
+        (end - start).total_seconds(),
+        3
+    )
 
 
 def complete_run(run_id: str, final_response: str):
     if run_id in runs:
         runs[run_id]["status"] = "completed"
         runs[run_id]["completed_at"] = datetime.now().isoformat()
+        runs[run_id]["duration_seconds"] = _calculate_duration(run_id)
         runs[run_id]["final_response"] = final_response
 
         _save_runs(runs)
@@ -69,6 +86,7 @@ def fail_run(run_id: str, error: str):
     if run_id in runs:
         runs[run_id]["status"] = "failed"
         runs[run_id]["completed_at"] = datetime.now().isoformat()
+        runs[run_id]["duration_seconds"] = _calculate_duration(run_id)
         runs[run_id]["final_response"] = error
 
         _save_runs(runs)
