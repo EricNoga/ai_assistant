@@ -2,7 +2,8 @@ from backend.core.config import (
     PROJECT_ROOT,
     OPENAI_API_KEY,
     DEFAULT_MODEL,
-    MAX_AGENT_STEPS
+    MAX_AGENT_STEPS,
+    ALLOW_HIGH_RISK_TOOLS
 )
 
 from backend.tools.registry import get_tool_names
@@ -31,6 +32,7 @@ def check_health():
         "valid_providers": get_valid_providers(),
         "default_model": DEFAULT_MODEL,
         "max_agent_steps": MAX_AGENT_STEPS,
+        "allow_high_risk_tools": ALLOW_HIGH_RISK_TOOLS,
         "available_tools": get_tool_names()
     }
 
