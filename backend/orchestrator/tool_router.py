@@ -2,6 +2,7 @@ from backend.tools.file_system import read_file, write_file, list_files
 from backend.sandbox.python_runner import run_python_code
 from backend.tools.media_tools import create_media_project
 from backend.tools.media_workflow import create_media_package
+from backend.tools.cybersecurity_tools import analyze_security_log
 
 
 TOOL_FUNCTIONS = {
@@ -10,7 +11,8 @@ TOOL_FUNCTIONS = {
     "list_files": list_files,
     "run_python_code": run_python_code,
     "create_media_project": create_media_project,
-    "create_media_package": create_media_package
+    "create_media_package": create_media_package,
+    "analyze_security_log": analyze_security_log
 }
 
 
@@ -62,6 +64,11 @@ def run_tool(tool_name: str, args: dict):
                 args.get("audio_prompt", ""),
                 args.get("storyboard", ""),
                 args.get("shot_list", "")
+            )
+
+        if tool_name == "analyze_security_log":
+            return TOOL_FUNCTIONS[tool_name](
+                args.get("log_text", "")
             )
 
     except Exception as e:

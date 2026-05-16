@@ -42,6 +42,12 @@ TOOLS = {
             "storyboard": "Storyboard text.",
             "shot_list": "Shot list text."
         }
+    },
+    "analyze_security_log": {
+        "description": "Analyze defensive security logs for suspicious keywords, repeated IPs, and recommended actions.",
+        "args": {
+            "log_text": "Security log text to analyze."
+        }
     }
 }
 
