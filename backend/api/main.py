@@ -6,8 +6,8 @@ from backend.core.config import (
     MAX_AGENT_STEPS,
     OPENAI_API_KEY
 )
-
 from backend.core.health import check_health
+from backend.core.bootstrap import bootstrap_project
 
 from backend.models.openai_client import get_ai_response
 from backend.memory.chat_memory import get_history, clear_history
@@ -31,6 +31,11 @@ class ChatRequest(BaseModel):
 class MemorySearchRequest(BaseModel):
     query: str
     n_results: int = 3
+
+
+@app.on_event("startup")
+async def startup_event():
+    bootstrap_project()
 
 
 @app.get("/")
@@ -121,3 +126,13 @@ async def status():
 @app.get("/health")
 async def health():
     return check_health()
+
+
+@app.post("/bootstrap")
+async def bootstrap():
+    folders = bootstrap_project()
+
+    return {
+        "message": "Bootstrap completed",
+        "folders": folders
+    }
