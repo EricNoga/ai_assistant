@@ -32,13 +32,9 @@ from backend.orchestrator.agent_router import choose_agent
 
 from backend.tools.registry import get_tool_descriptions
 
-from backend.agents.coding_agent import (
-    get_coding_agent_prompt
-)
-
-from backend.agents.general_agent import (
-    get_general_agent_prompt
-)
+from backend.agents.coding_agent import get_coding_agent_prompt
+from backend.agents.general_agent import get_general_agent_prompt
+from backend.agents.cybersecurity_agent import get_cybersecurity_agent_prompt
 
 
 client = OpenAI(
@@ -48,12 +44,7 @@ client = OpenAI(
 MAX_STEPS = MAX_AGENT_STEPS
 
 
-# -----------------------------------
-# TASK PLANNER
-# -----------------------------------
-
 def create_plan(user_message: str):
-
     response = client.chat.completions.create(
         model=DEFAULT_MODEL,
         messages=[
@@ -91,24 +82,23 @@ Example:
     return response.choices[0].message.content
 
 
-# -----------------------------------
-# MAIN AGENT FUNCTION
-# -----------------------------------
+def get_system_prompt(selected_agent: str):
+    tool_descriptions = get_tool_descriptions()
+
+    if selected_agent == "coding":
+        return get_coding_agent_prompt(tool_descriptions)
+
+    if selected_agent == "cybersecurity":
+        return get_cybersecurity_agent_prompt(tool_descriptions)
+
+    return get_general_agent_prompt(tool_descriptions)
+
 
 def get_ai_response(user_message: str):
-
-    # -----------------------------------
-    # STORE USER MESSAGE
-    # -----------------------------------
-
     add_message(
         "user",
         user_message
     )
-
-    # -----------------------------------
-    # CHOOSE AGENT
-    # -----------------------------------
 
     selected_agent = choose_agent(
         user_message
@@ -119,10 +109,6 @@ def get_ai_response(user_message: str):
         selected_agent
     )
 
-    # -----------------------------------
-    # LONG-TERM MEMORY SEARCH
-    # -----------------------------------
-
     relevant_memory = search_memory(
         user_message
     )
@@ -130,14 +116,9 @@ def get_ai_response(user_message: str):
     memory_context = ""
 
     if relevant_memory:
-
         memory_context = "\n".join(
             relevant_memory
         )
-
-    # -----------------------------------
-    # CREATE TASK PLAN
-    # -----------------------------------
 
     raw_plan = create_plan(
         user_message
@@ -149,13 +130,11 @@ def get_ai_response(user_message: str):
     )
 
     try:
-
         task_list = json.loads(
             raw_plan
         )
 
     except Exception:
-
         logger.error(
             "Planner returned invalid JSON: %s",
             raw_plan
@@ -166,19 +145,16 @@ def get_ai_response(user_message: str):
             f"{raw_plan}"
         )
 
-    # -----------------------------------
-    # CREATE TASK OBJECTS
-    # -----------------------------------
-
     task_ids = []
 
     for task in task_list:
-
         task_id = create_task(
             task["task"]
         )
 
-        task_ids.append(task_id)
+        task_ids.append(
+            task_id
+        )
 
     logger.info(
         "Created %s task(s)",
@@ -193,16 +169,12 @@ def get_ai_response(user_message: str):
 
     final_outputs = []
 
-    # -----------------------------------
-    # EXECUTE TASKS
-    # -----------------------------------
-
     for task_id in task_ids:
-
-        task = get_task(task_id)
+        task = get_task(
+            task_id
+        )
 
         if not task:
-
             logger.warning(
                 "Task not found: %s",
                 task_id
@@ -212,6 +184,9 @@ def get_ai_response(user_message: str):
 
         execution_prompt = f"""
 You are an execution agent.
+
+Selected agent:
+{selected_agent}
 
 Relevant long-term memory:
 {memory_context}
@@ -231,12 +206,7 @@ Return a final answer when complete.
             execution_prompt
         )
 
-        # -----------------------------------
-        # MULTI-STEP EXECUTION LOOP
-        # -----------------------------------
-
         for step in range(MAX_STEPS):
-
             logger.info(
                 "Executing task %s | step %s/%s",
                 task_id,
@@ -244,36 +214,14 @@ Return a final answer when complete.
                 MAX_STEPS
             )
 
-            # -----------------------------------
-            # SELECT PROMPT BY AGENT TYPE
-            # -----------------------------------
-
-            if selected_agent == "coding":
-
-                system_prompt = (
-                    get_coding_agent_prompt(
-                        get_tool_descriptions()
-                    )
-                )
-
-            else:
-
-                system_prompt = (
-                    get_general_agent_prompt(
-                        get_tool_descriptions()
-                    )
-                )
-
             messages = [
                 {
                     "role": "system",
-                    "content": system_prompt
+                    "content": get_system_prompt(
+                        selected_agent
+                    )
                 }
             ] + get_history()
-
-            # -----------------------------------
-            # CALL MODEL
-            # -----------------------------------
 
             response = client.chat.completions.create(
                 model=DEFAULT_MODEL,
@@ -287,17 +235,11 @@ Return a final answer when complete.
                 .content
             )
 
-            # -----------------------------------
-            # TOOL EXECUTION
-            # -----------------------------------
-
             if (
                 reply
                 and reply.startswith("TOOL:")
             ):
-
                 try:
-
                     lines = reply.split("\n")
 
                     tool_name = (
@@ -318,10 +260,6 @@ Return a final answer when complete.
                         args
                     )
 
-                    # -----------------------------------
-                    # RUN TOOL
-                    # -----------------------------------
-
                     tool_result = run_tool(
                         tool_name,
                         args
@@ -332,18 +270,10 @@ Return a final answer when complete.
                         tool_result
                     )
 
-                    # -----------------------------------
-                    # STORE TOOL USAGE
-                    # -----------------------------------
-
                     add_message(
                         "assistant",
                         f"[USED TOOL: {tool_name}]"
                     )
-
-                    # -----------------------------------
-                    # FEED TOOL RESULT BACK
-                    # -----------------------------------
 
                     add_message(
                         "user",
@@ -351,7 +281,6 @@ Return a final answer when complete.
                     )
 
                 except Exception as e:
-
                     error_msg = (
                         "Tool execution error: "
                         f"{str(e)}"
@@ -380,11 +309,6 @@ Return a final answer when complete.
                     break
 
             else:
-
-                # -----------------------------------
-                # TASK COMPLETED
-                # -----------------------------------
-
                 update_task(
                     task_id,
                     "done",
@@ -400,13 +324,12 @@ Return a final answer when complete.
                     reply
                 )
 
-                # -----------------------------------
-                # SMART LONG-TERM MEMORY STORAGE
-                # -----------------------------------
-
                 memory_text = f"""
 USER REQUEST:
 {user_message}
+
+SELECTED AGENT:
+{selected_agent}
 
 TASK RESULT:
 {reply}
@@ -415,17 +338,15 @@ TASK RESULT:
                 if is_important(
                     memory_text
                 ):
-
-                    summarized_memory = (
-                        summarize_memory(
-                            [memory_text]
-                        )
+                    summarized_memory = summarize_memory(
+                        [memory_text]
                     )
 
                     add_memory(
                         text=summarized_memory,
                         metadata={
-                            "type": "important_memory"
+                            "type": "important_memory",
+                            "agent": selected_agent
                         }
                     )
 
@@ -434,10 +355,6 @@ TASK RESULT:
                     )
 
                 break
-
-    # -----------------------------------
-    # FINAL RESPONSE
-    # -----------------------------------
 
     final_response = "\n\n".join(
         final_outputs
