@@ -45,31 +45,43 @@ client = OpenAI(
 MAX_STEPS = MAX_AGENT_STEPS
 
 
-def create_plan(user_message: str):
+def create_plan(
+    user_message: str,
+    selected_agents: list
+):
     response = client.chat.completions.create(
         model=DEFAULT_MODEL,
         messages=[
             {
                 "role": "system",
-                "content": """
-You are a task planning AI.
+                "content": f"""
+You are an agent-aware task planner.
+
+Available agents for this request:
+{selected_agents}
 
 Convert the user request into a JSON list of tasks.
 
 RULES:
-- Output ONLY valid JSON
+- Output ONLY valid JSON.
 - Each item must contain:
-{
-  "task": "description"
-}
-- Keep tasks short
-- Use 2 to 6 tasks maximum
+{{
+  "task": "description",
+  "agent": "general | coding | cybersecurity | media"
+}}
+
+- Only use agents from this available list:
+{selected_agents}
+
+- Keep tasks short.
+- Use 2 to 6 tasks maximum.
+- Choose the best agent for each task.
 
 Example:
 [
-  {"task": "Analyze security log"},
-  {"task": "Write parser if needed"},
-  {"task": "Save final report"}
+  {{"task": "Analyze security log for suspicious activity", "agent": "cybersecurity"}},
+  {{"task": "Write a Python parser for similar logs", "agent": "coding"}},
+  {{"task": "Create a visual dashboard concept", "agent": "media"}}
 ]
 """
             },
@@ -98,22 +110,17 @@ def get_system_prompt(selected_agent: str):
     return get_general_agent_prompt(tool_descriptions)
 
 
-def choose_agent_for_task(task_description: str, selected_agents: list):
-    message = task_description.lower()
+def normalize_agent(
+    requested_agent: str,
+    selected_agents: list
+):
+    if requested_agent in selected_agents:
+        return requested_agent
 
-    if "security" in message or "log" in message or "incident" in message:
-        if "cybersecurity" in selected_agents:
-            return "cybersecurity"
+    if selected_agents:
+        return selected_agents[0]
 
-    if "code" in message or "script" in message or "parser" in message:
-        if "coding" in selected_agents:
-            return "coding"
-
-    if "image" in message or "video" in message or "audio" in message or "visual" in message:
-        if "media" in selected_agents:
-            return "media"
-
-    return selected_agents[0]
+    return "general"
 
 
 def get_ai_response(user_message: str):
@@ -143,7 +150,8 @@ def get_ai_response(user_message: str):
         )
 
     raw_plan = create_plan(
-        user_message
+        user_message,
+        selected_agents
     )
 
     logger.info(
@@ -169,14 +177,33 @@ def get_ai_response(user_message: str):
 
     task_ids = []
 
+    task_agent_map = {}
+
     for task in task_list:
+        task_description = task.get(
+            "task",
+            ""
+        )
+
+        requested_agent = task.get(
+            "agent",
+            selected_agents[0]
+        )
+
+        normalized_agent = normalize_agent(
+            requested_agent,
+            selected_agents
+        )
+
         task_id = create_task(
-            task["task"]
+            task_description
         )
 
         task_ids.append(
             task_id
         )
+
+        task_agent_map[task_id] = normalized_agent
 
     logger.info(
         "Created %s task(s)",
@@ -204,9 +231,9 @@ def get_ai_response(user_message: str):
 
             continue
 
-        selected_agent = choose_agent_for_task(
-            task["description"],
-            selected_agents
+        selected_agent = task_agent_map.get(
+            task_id,
+            selected_agents[0]
         )
 
         logger.info(
