@@ -13,6 +13,7 @@ from backend.api.routes.status_routes import router as status_router
 from backend.api.routes.log_routes import router as log_router
 from backend.api.routes.provider_routes import router as provider_router
 from backend.api.routes.provider_test_routes import router as provider_test_router
+from backend.api.routes.tool_routes import router as tool_router
 
 
 @asynccontextmanager
@@ -38,5 +39,6 @@ def create_app():
     app.include_router(log_router)
     app.include_router(provider_router)
     app.include_router(provider_test_router)
+    app.include_router(tool_router)
 
     return app
