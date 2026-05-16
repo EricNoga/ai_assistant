@@ -12,6 +12,6 @@ router = APIRouter(
 @router.get("/providers")
 async def providers():
     return{
-        "active_providers": get_active_provider_name(),
+        "active_provider": get_active_provider_name(),
         "valid_providers": get_valid_providers()
     }
