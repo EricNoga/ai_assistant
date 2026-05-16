@@ -30,6 +30,29 @@ def choose_agent(user_message: str):
         "brute force"
     ]
 
+    media_keywords = [
+        "image",
+        "picture",
+        "photo",
+        "art",
+        "design",
+        "generate image",
+        "video",
+        "movie",
+        "animation",
+        "edit",
+        "audio",
+        "music",
+        "voice",
+        "sound",
+        "soundtrack",
+        "prompt",
+        "storyboard",
+        "shot list",
+        "scene",
+        "cinematic"
+    ]
+
     coding_keywords = [
         "code",
         "script",
@@ -48,6 +71,9 @@ def choose_agent(user_message: str):
 
     if any(keyword in message for keyword in cybersecurity_keywords):
         return "cybersecurity"
+
+    if any(keyword in message for keyword in media_keywords):
+        return "media"
 
     if any(keyword in message for keyword in coding_keywords):
         return "coding"

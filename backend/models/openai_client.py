@@ -35,6 +35,7 @@ from backend.tools.registry import get_tool_descriptions
 from backend.agents.coding_agent import get_coding_agent_prompt
 from backend.agents.general_agent import get_general_agent_prompt
 from backend.agents.cybersecurity_agent import get_cybersecurity_agent_prompt
+from backend.agents.media_agent import get_media_agent_prompt
 
 
 client = OpenAI(
@@ -90,6 +91,9 @@ def get_system_prompt(selected_agent: str):
 
     if selected_agent == "cybersecurity":
         return get_cybersecurity_agent_prompt(tool_descriptions)
+
+    if selected_agent == "media":
+        return get_media_agent_prompt(tool_descriptions)
 
     return get_general_agent_prompt(tool_descriptions)
 
