@@ -28,7 +28,7 @@ from backend.memory.vector_memory import (
 )
 
 from backend.orchestrator.tool_router import run_tool
-from backend.orchestrator.agent_router import choose_agent
+from backend.orchestrator.multi_agent_router import choose_agents
 
 from backend.tools.registry import get_tool_descriptions
 
@@ -67,9 +67,9 @@ RULES:
 
 Example:
 [
-  {"task": "Write Python code"},
-  {"task": "Run the Python code"},
-  {"task": "Explain the result"}
+  {"task": "Analyze security log"},
+  {"task": "Write parser if needed"},
+  {"task": "Save final report"}
 ]
 """
             },
@@ -98,19 +98,37 @@ def get_system_prompt(selected_agent: str):
     return get_general_agent_prompt(tool_descriptions)
 
 
+def choose_agent_for_task(task_description: str, selected_agents: list):
+    message = task_description.lower()
+
+    if "security" in message or "log" in message or "incident" in message:
+        if "cybersecurity" in selected_agents:
+            return "cybersecurity"
+
+    if "code" in message or "script" in message or "parser" in message:
+        if "coding" in selected_agents:
+            return "coding"
+
+    if "image" in message or "video" in message or "audio" in message or "visual" in message:
+        if "media" in selected_agents:
+            return "media"
+
+    return selected_agents[0]
+
+
 def get_ai_response(user_message: str):
     add_message(
         "user",
         user_message
     )
 
-    selected_agent = choose_agent(
+    selected_agents = choose_agents(
         user_message
     )
 
     logger.info(
-        "Selected agent: %s",
-        selected_agent
+        "Selected agents: %s",
+        selected_agents
     )
 
     relevant_memory = search_memory(
@@ -186,10 +204,24 @@ def get_ai_response(user_message: str):
 
             continue
 
+        selected_agent = choose_agent_for_task(
+            task["description"],
+            selected_agents
+        )
+
+        logger.info(
+            "Task %s assigned to agent: %s",
+            task_id,
+            selected_agent
+        )
+
         execution_prompt = f"""
 You are an execution agent.
 
-Selected agent:
+Available agents for this request:
+{selected_agents}
+
+Assigned agent for this task:
 {selected_agent}
 
 Relevant long-term memory:
@@ -325,14 +357,17 @@ Return a final answer when complete.
                 )
 
                 final_outputs.append(
-                    reply
+                    f"[{selected_agent.upper()} AGENT]\n{reply}"
                 )
 
                 memory_text = f"""
 USER REQUEST:
 {user_message}
 
-SELECTED AGENT:
+SELECTED AGENTS:
+{selected_agents}
+
+TASK AGENT:
 {selected_agent}
 
 TASK RESULT:
