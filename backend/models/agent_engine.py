@@ -1,16 +1,9 @@
 import json
 
-from openai import OpenAI
-from openai import OpenAIError
-from openai import RateLimitError
-
-from backend.core.config import (
-    OPENAI_API_KEY,
-    DEFAULT_MODEL,
-    MAX_AGENT_STEPS
-)
-
 from backend.core.logger import logger
+from backend.core.config import MAX_AGENT_STEPS
+
+from backend.providers.ai_provider import chat_completion
 
 from backend.memory.chat_memory import (
     add_message,
@@ -49,10 +42,6 @@ from backend.agents.media_agent import get_media_agent_prompt
 from backend.agents.reviewer_agent import get_reviewer_agent_prompt
 
 
-client = OpenAI(
-    api_key=OPENAI_API_KEY
-)
-
 MAX_STEPS = MAX_AGENT_STEPS
 
 
@@ -60,13 +49,10 @@ def create_plan(
     user_message: str,
     selected_agents: list
 ):
-    try:
-        response = client.chat.completions.create(
-            model=DEFAULT_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": f"""
+    messages = [
+        {
+            "role": "system",
+            "content": f"""
 You are an agent-aware task planner.
 
 Available agents for this request:
@@ -95,100 +81,65 @@ Example:
   {{"task": "Write parser", "agent": "coding"}}
 ]
 """
-                },
-                {
-                    "role": "user",
-                    "content": user_message
-                }
-            ]
-        )
+        },
+        {
+            "role": "user",
+            "content": user_message
+        }
+    ]
 
-        return response.choices[0].message.content
-
-    except RateLimitError as e:
-        logger.error(
-            "OpenAI quota/rate limit error: %s",
-            str(e)
-        )
-
-        fallback_plan = [
-            {
-                "task": user_message,
-                "agent": selected_agents[0]
-            }
-        ]
-
-        return json.dumps(
-            fallback_plan
-        )
-
-    except OpenAIError as e:
-        logger.error(
-            "OpenAI API error: %s",
-            str(e)
-        )
-
-        fallback_plan = [
-            {
-                "task": user_message,
-                "agent": selected_agents[0]
-            }
-        ]
-
-        return json.dumps(
-            fallback_plan
-        )
+    return chat_completion(
+        messages
+    )
 
 
 def review_final_response(
     user_message: str,
     draft_response: str
 ):
-    try:
-        response = client.chat.completions.create(
-            model=DEFAULT_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": get_reviewer_agent_prompt()
-                },
-                {
-                    "role": "user",
-                    "content": f"""
+    messages = [
+        {
+            "role": "system",
+            "content": get_reviewer_agent_prompt()
+        },
+        {
+            "role": "user",
+            "content": f"""
 Original user request:
 {user_message}
 
 Draft response:
 {draft_response}
 """
-                }
-            ]
-        )
+        }
+    ]
 
-        return response.choices[0].message.content
-
-    except Exception as e:
-        logger.error(
-            "Reviewer agent failed: %s",
-            str(e)
-        )
-
-        return draft_response
+    return chat_completion(
+        messages
+    )
 
 
 def get_system_prompt(selected_agent: str):
     tool_descriptions = get_tool_descriptions()
 
     if selected_agent == "coding":
-        return get_coding_agent_prompt(tool_descriptions)
+        return get_coding_agent_prompt(
+            tool_descriptions
+        )
 
     if selected_agent == "cybersecurity":
-        return get_cybersecurity_agent_prompt(tool_descriptions)
+        return get_cybersecurity_agent_prompt(
+            tool_descriptions
+        )
 
     if selected_agent == "media":
-        return get_media_agent_prompt(tool_descriptions)
+        return get_media_agent_prompt(
+            tool_descriptions
+        )
 
-    return get_general_agent_prompt(tool_descriptions)
+    return get_general_agent_prompt(
+        tool_descriptions
+    )
 
 
 def normalize_agent(
@@ -202,6 +153,18 @@ def normalize_agent(
         return selected_agents[0]
 
     return "general"
+
+
+def get_fallback_plan(
+    user_message: str,
+    selected_agents: list
+):
+    return [
+        {
+            "task": user_message,
+            "agent": selected_agents[0]
+        }
+    ]
 
 
 def get_ai_response(user_message: str):
@@ -256,22 +219,15 @@ def get_ai_response(user_message: str):
         )
 
     except Exception:
-        error_response = (
-            "Planner returned invalid JSON:\n"
-            f"{raw_plan}"
-        )
-
         logger.error(
-            "Planner returned invalid JSON: %s",
+            "Planner returned invalid JSON, using fallback plan: %s",
             raw_plan
         )
 
-        fail_run(
-            run_id,
-            error_response
+        task_list = get_fallback_plan(
+            user_message,
+            selected_agents
         )
-
-        return error_response
 
     task_ids = []
     task_agent_map = {}
@@ -392,42 +348,9 @@ Return a final answer when complete.
                 }
             ] + get_history()
 
-            try:
-                response = client.chat.completions.create(
-                    model=DEFAULT_MODEL,
-                    messages=messages
-                )
-
-                reply = (
-                    response
-                    .choices[0]
-                    .message
-                    .content
-                )
-
-            except RateLimitError as e:
-                logger.error(
-                    "Run %s | OpenAI quota exceeded: %s",
-                    run_id,
-                    str(e)
-                )
-
-                reply = (
-                    "OpenAI quota exceeded. "
-                    "Switch to mock mode or add API credits."
-                )
-
-            except OpenAIError as e:
-                logger.error(
-                    "Run %s | OpenAI API error: %s",
-                    run_id,
-                    str(e)
-                )
-
-                reply = (
-                    "OpenAI API error occurred. "
-                    "Check your API key, billing, model name, or network connection."
-                )
+            reply = chat_completion(
+                messages
+            )
 
             if (
                 reply

@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.core.config import USE_MOCK_AI
-from backend.models.openai_client import get_ai_response
+from backend.models.agent_engine import get_ai_response
 from backend.models.mock_client import get_mock_ai_response
 
 
