@@ -1,0 +1,17 @@
+from fastapi import APIRouter
+
+from backend.providers.registry import (
+get_active_provider_name,
+get_valid_providers
+)
+
+router = APIRouter(
+    tags=["Providers"]
+)
+
+@router.get("/providers")
+async def providers():
+    return{
+        "active_providers": get_active_provider_name(),
+        "valid_providers": get_valid_providers()
+    }
