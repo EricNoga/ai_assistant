@@ -12,7 +12,7 @@ BASE_MEDIA_PATH = (
     / "projects"
 )
 
-def create_media_prompt(
+def create_media_project(
         project_name: str,
         description: str
 ):
