@@ -8,7 +8,10 @@ from backend.core.config import (
 from backend.core.health import check_health
 from backend.core.bootstrap import bootstrap_project
 from backend.tools.registry import get_tool_names
-from backend.providers.registry import get_active_provider_name
+from backend.providers.registry import (
+    get_active_provider_name,
+    get_valid_providers
+)
 
 
 router = APIRouter(
@@ -28,6 +31,7 @@ async def status():
     return {
         "status": "running",
         "provider": get_active_provider_name(),
+        "valid_providers": get_valid_providers(),
         "model": DEFAULT_MODEL,
         "max_agent_steps": MAX_AGENT_STEPS,
         "openai_api_key_loaded": bool(OPENAI_API_KEY),

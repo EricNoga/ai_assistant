@@ -1,8 +1,18 @@
-from backend.core.config import USE_MOCK_AI
+from backend.core.config import AI_PROVIDER
+
+
+VALID_PROVIDERS = [
+    "mock",
+    "openai"
+]
 
 
 def get_active_provider_name():
-    if USE_MOCK_AI:
-        return "mock"
+    if AI_PROVIDER in VALID_PROVIDERS:
+        return AI_PROVIDER
 
-    return "openai"
+    return "mock"
+
+
+def get_valid_providers():
+    return VALID_PROVIDERS

@@ -14,6 +14,11 @@ DEFAULT_MODEL = os.getenv(
     "gpt-4.1-mini"
 )
 
+AI_PROVIDER = os.getenv(
+    "AI_PROVIDER",
+    "mock"
+).lower()
+
 MAX_AGENT_STEPS = int(
     os.getenv("MAX_AGENT_STEPS", "5")
 )
@@ -23,7 +28,4 @@ MEMORY_DB_PATH = os.getenv(
     str(PROJECT_ROOT / "backend" / "memory_db")
 )
 
-USE_MOCK_AI = os.getenv(
-    "USE_MOCK_AI",
-    "false"
-).lower() == "true"
+USE_MOCK_AI = AI_PROVIDER == "mock"
