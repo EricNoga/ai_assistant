@@ -4,6 +4,7 @@ from backend.core.config import (
     DEFAULT_MODEL,
     MAX_AGENT_STEPS,
     OPENAI_API_KEY,
+    ALLOW_MEDIUM_RISK_TOOLS,
     ALLOW_HIGH_RISK_TOOLS
 )
 from backend.core.health import check_health
@@ -36,6 +37,7 @@ async def status():
         "model": DEFAULT_MODEL,
         "max_agent_steps": MAX_AGENT_STEPS,
         "openai_api_key_loaded": bool(OPENAI_API_KEY),
+        "allow_medium_risk_tools": ALLOW_MEDIUM_RISK_TOOLS,
         "allow_high_risk_tools": ALLOW_HIGH_RISK_TOOLS,
         "available_tools": get_tool_names()
     }
