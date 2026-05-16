@@ -7,6 +7,8 @@ from backend.core.config import (
     OPENAI_API_KEY
 )
 
+from backend.core.health import check_health
+
 from backend.models.openai_client import get_ai_response
 from backend.memory.chat_memory import get_history, clear_history
 from backend.memory.task_memory import list_tasks
@@ -114,3 +116,8 @@ async def status():
         "openai_api_key_loaded": bool(OPENAI_API_KEY),
         "available_tools": get_tool_names()
     }
+
+
+@app.get("/health")
+async def health():
+    return check_health()
