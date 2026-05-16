@@ -16,7 +16,9 @@ from backend.memory.run_memory import list_runs, get_run
 from backend.tools.registry import get_tool_names
 
 
-router = APIRouter()
+router = APIRouter(
+    tags=["System"]
+)
 
 
 class MemorySearchRequest(BaseModel):

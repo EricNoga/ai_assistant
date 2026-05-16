@@ -3,10 +3,15 @@ from pydantic import BaseModel
 
 from backend.models.openai_client import get_ai_response
 
-router = APIRouter()
+
+router = APIRouter(
+    tags=["Chat"]
+)
+
 
 class ChatRequest(BaseModel):
     message: str
+
 
 @router.post("/chat")
 async def chat(request: ChatRequest):
