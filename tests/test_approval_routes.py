@@ -1,17 +1,8 @@
 import pytest
 
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
 
 @pytest.fixture(autouse=True)
-def clear_approval_state():
+def clear_approval_state(client):
     response = client.post(
         "/test-admin/clear-approvals"
     )
@@ -19,7 +10,7 @@ def clear_approval_state():
     assert response.status_code == 200
 
 
-def _create_high_risk_approval():
+def _create_high_risk_approval(client):
     response = client.post(
         "/tools/run",
         json={
@@ -41,7 +32,7 @@ def _create_high_risk_approval():
     return data["result"]["approval_id"]
 
 
-def test_approvals_endpoint():
+def test_approvals_endpoint(client):
     response = client.get("/approvals")
 
     assert response.status_code == 200
@@ -52,8 +43,8 @@ def test_approvals_endpoint():
     assert isinstance(data["approvals"], list)
 
 
-def test_approval_audit_endpoint():
-    approval_id = _create_high_risk_approval()
+def test_approval_audit_endpoint(client):
+    approval_id = _create_high_risk_approval(client)
 
     response = client.get("/approvals/audit")
 
@@ -70,8 +61,8 @@ def test_approval_audit_endpoint():
     )
 
 
-def test_approval_specific_audit_endpoint():
-    approval_id = _create_high_risk_approval()
+def test_approval_specific_audit_endpoint(client):
+    approval_id = _create_high_risk_approval(client)
 
     response = client.get(
         f"/approvals/{approval_id}/audit"
@@ -95,8 +86,8 @@ def test_approval_specific_audit_endpoint():
     )
 
 
-def test_approval_detail_endpoint():
-    approval_id = _create_high_risk_approval()
+def test_approval_detail_endpoint(client):
+    approval_id = _create_high_risk_approval(client)
 
     response = client.get(
         f"/approvals/{approval_id}"
@@ -111,8 +102,8 @@ def test_approval_detail_endpoint():
     assert data["approval"]["status"] == "pending"
 
 
-def test_approve_approval_endpoint():
-    approval_id = _create_high_risk_approval()
+def test_approve_approval_endpoint(client):
+    approval_id = _create_high_risk_approval(client)
 
     response = client.post(
         f"/approvals/{approval_id}/approve"
@@ -127,8 +118,8 @@ def test_approve_approval_endpoint():
     assert data["approval"]["status"] == "approved"
 
 
-def test_deny_approval_endpoint():
-    approval_id = _create_high_risk_approval()
+def test_deny_approval_endpoint(client):
+    approval_id = _create_high_risk_approval(client)
 
     response = client.post(
         f"/approvals/{approval_id}/deny"
@@ -143,8 +134,8 @@ def test_deny_approval_endpoint():
     assert data["approval"]["status"] == "denied"
 
 
-def test_execute_approval_requires_approval_first():
-    approval_id = _create_high_risk_approval()
+def test_execute_approval_requires_approval_first(client):
+    approval_id = _create_high_risk_approval(client)
 
     response = client.post(
         f"/approvals/{approval_id}/execute"
@@ -158,8 +149,8 @@ def test_execute_approval_requires_approval_first():
     assert data["error"] == "Approval must be approved before execution"
 
 
-def test_execute_approved_tool_request():
-    approval_id = _create_high_risk_approval()
+def test_execute_approved_tool_request(client):
+    approval_id = _create_high_risk_approval(client)
 
     approve_response = client.post(
         f"/approvals/{approval_id}/approve"
@@ -182,8 +173,8 @@ def test_execute_approved_tool_request():
     assert "approval test" in data["result"]["stdout"]
 
 
-def test_approval_cannot_execute_twice():
-    approval_id = _create_high_risk_approval()
+def test_approval_cannot_execute_twice(client):
+    approval_id = _create_high_risk_approval(client)
 
     approve_response = client.post(
         f"/approvals/{approval_id}/approve"
@@ -209,8 +200,8 @@ def test_approval_cannot_execute_twice():
     assert data["error"] == "Approval has already been executed"
 
 
-def test_denied_approval_cannot_execute():
-    approval_id = _create_high_risk_approval()
+def test_denied_approval_cannot_execute(client):
+    approval_id = _create_high_risk_approval(client)
 
     deny_response = client.post(
         f"/approvals/{approval_id}/deny"
@@ -230,8 +221,8 @@ def test_denied_approval_cannot_execute():
     assert data["error"] == "Denied approval cannot be executed"
 
 
-def test_denied_approval_cannot_be_approved():
-    approval_id = _create_high_risk_approval()
+def test_denied_approval_cannot_be_approved(client):
+    approval_id = _create_high_risk_approval(client)
 
     deny_response = client.post(
         f"/approvals/{approval_id}/deny"
@@ -251,8 +242,8 @@ def test_denied_approval_cannot_be_approved():
     assert data["error"] == "Approval has been denied and cannot be approved"
 
 
-def test_executed_approval_cannot_be_denied():
-    approval_id = _create_high_risk_approval()
+def test_executed_approval_cannot_be_denied(client):
+    approval_id = _create_high_risk_approval(client)
 
     approve_response = client.post(
         f"/approvals/{approval_id}/approve"
@@ -278,7 +269,7 @@ def test_executed_approval_cannot_be_denied():
     assert data["error"] == "Only pending approvals can be denied"
 
 
-def test_approve_missing_approval():
+def test_approve_missing_approval(client):
     response = client.post(
         "/approvals/not-real/approve"
     )

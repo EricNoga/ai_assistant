@@ -1,14 +1,4 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
-
-def test_chat_endpoint():
+def test_chat_endpoint(client):
     response = client.post(
         "/chat",
         json={

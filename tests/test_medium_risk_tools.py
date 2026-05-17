@@ -1,17 +1,7 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
-
 TEST_FILE_PATH = "data/state/test_medium_risk_tool.txt"
 
 
-def test_medium_risk_tool_is_allowed():
+def test_medium_risk_tool_is_allowed(client):
     response = client.post(
         "/tools/run",
         json={
@@ -48,7 +38,7 @@ def test_medium_risk_tool_is_allowed():
     assert "Deleted file" in cleanup_data["result"]
 
 
-def test_high_risk_tool_still_blocked():
+def test_high_risk_tool_still_blocked(client):
     response = client.post(
         "/tools/run",
         json={

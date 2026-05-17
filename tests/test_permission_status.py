@@ -1,14 +1,4 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
-
-def test_status_includes_medium_risk_tool_setting():
+def test_status_includes_medium_risk_tool_setting(client):
     response = client.get("/status")
 
     assert response.status_code == 200
@@ -19,7 +9,7 @@ def test_status_includes_medium_risk_tool_setting():
     assert data["allow_medium_risk_tools"] is True
 
 
-def test_status_includes_high_risk_tool_setting():
+def test_status_includes_high_risk_tool_setting(client):
     response = client.get("/status")
 
     assert response.status_code == 200
@@ -30,7 +20,7 @@ def test_status_includes_high_risk_tool_setting():
     assert data["allow_high_risk_tools"] is False
 
 
-def test_health_includes_medium_risk_tool_setting():
+def test_health_includes_medium_risk_tool_setting(client):
     response = client.get("/health")
 
     assert response.status_code == 200
@@ -42,7 +32,7 @@ def test_health_includes_medium_risk_tool_setting():
     assert data["checks"]["allow_medium_risk_tools"] is True
 
 
-def test_health_includes_high_risk_tool_setting():
+def test_health_includes_high_risk_tool_setting(client):
     response = client.get("/health")
 
     assert response.status_code == 200
