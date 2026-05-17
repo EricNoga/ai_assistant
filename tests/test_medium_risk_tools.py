@@ -8,13 +8,16 @@ client = TestClient(
 )
 
 
+TEST_FILE_PATH = "data/state/test_medium_risk_tool.txt"
+
+
 def test_medium_risk_tool_is_allowed():
     response = client.post(
         "/tools/run",
         json={
             "tool_name": "write_file",
             "args": {
-                "path": "data/state/test_medium_risk_tool.txt",
+                "path": TEST_FILE_PATH,
                 "content": "medium risk tool test"
             }
         }
@@ -26,6 +29,23 @@ def test_medium_risk_tool_is_allowed():
 
     assert "result" in data
     assert "File written" in data["result"]
+
+    cleanup_response = client.post(
+        "/tools/run",
+        json={
+            "tool_name": "cleanup_test_file",
+            "args": {
+                "path": TEST_FILE_PATH
+            }
+        }
+    )
+
+    assert cleanup_response.status_code == 200
+
+    cleanup_data = cleanup_response.json()
+
+    assert "result" in cleanup_data
+    assert "Deleted file" in cleanup_data["result"]
 
 
 def test_high_risk_tool_still_blocked():
@@ -44,4 +64,6 @@ def test_high_risk_tool_still_blocked():
     data = response.json()
 
     assert "result" in data
-    assert "Tool blocked" in data["result"]
+    assert data["result"]["blocked"] is True
+    assert data["result"]["permission_level"] == "high"
+    assert "approval_id" in data["result"]

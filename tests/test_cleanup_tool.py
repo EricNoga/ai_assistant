@@ -1,20 +1,17 @@
 from fastapi.testclient import TestClient
-
 from backend.api.app import create_app
-
 
 client = TestClient(
     create_app()
 )
 
-
-def test_high_risk_tool_is_blocked_by_default():
+def test_cleanup_tool_blocks_unsafe_path():
     response = client.post(
         "/tools/run",
         json={
-            "tool_name": "run_python_code",
+            "tool_name": "cleanup_test_file",
             "args": {
-                "code": "print('hello')"
+                "path": "../../dangerous_file.txt"
             }
         }
     )
@@ -24,18 +21,15 @@ def test_high_risk_tool_is_blocked_by_default():
     data = response.json()
 
     assert "result" in data
-    assert data["result"]["blocked"] is True
-    assert data["result"]["permission_level"] == "high"
-    assert "approval_id" in data["result"]
+    assert "Cleanup blocked" in data["result"]
 
-
-def test_low_risk_tool_is_allowed():
+def test_cleanup_tool_handles_missing_file():
     response = client.post(
         "/tools/run",
         json={
-            "tool_name": "list_files",
+            "tool_name": "cleanup_test_file",
             "args": {
-                "path": "."
+                "path": "data/state/does_not_exist.txt"
             }
         }
     )
@@ -45,4 +39,4 @@ def test_low_risk_tool_is_allowed():
     data = response.json()
 
     assert "result" in data
-    assert isinstance(data["result"], list)
+    assert "File does not exist" in data["result"]

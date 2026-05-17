@@ -15,6 +15,7 @@ from backend.api.routes.provider_routes import router as provider_router
 from backend.api.routes.provider_test_routes import router as provider_test_router
 from backend.api.routes.tool_routes import router as tool_router
 from backend.api.routes.tool_test_routes import router as tool_test_router
+from backend.api.routes.approval_routes import router as approval_router
 
 
 @asynccontextmanager
@@ -42,5 +43,6 @@ def create_app():
     app.include_router(provider_test_router)
     app.include_router(tool_router)
     app.include_router(tool_test_router)
+    app.include_router(approval_router)
 
     return app
