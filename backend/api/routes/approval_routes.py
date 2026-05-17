@@ -9,7 +9,8 @@ from backend.security.approval_manager import (
 )
 
 from backend.security.approval_audit import (
-    list_approval_audit_events
+    list_approval_audit_events,
+    get_audit_events_for_approval
 )
 
 from backend.orchestrator.tool_router import (
@@ -40,6 +41,15 @@ async def approvals():
 async def approval_audit():
     return {
         "events": list_approval_audit_events()
+    }
+
+
+@router.get("/approvals/{approval_id}/audit")
+async def approval_audit_detail(approval_id: str):
+    return {
+        "events": get_audit_events_for_approval(
+            approval_id
+        )
     }
 
 

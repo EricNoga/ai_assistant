@@ -65,3 +65,13 @@ def record_approval_event(
 
 def list_approval_audit_events():
     return audit_events
+
+
+def get_audit_events_for_approval(
+    approval_id: str
+):
+    return [
+        event
+        for event in audit_events
+        if event["approval_id"] == approval_id
+    ]
