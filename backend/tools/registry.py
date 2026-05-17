@@ -72,6 +72,14 @@ TOOLS = {
             "severity": "Severity level.",
             "recommendations": "Recommended actions."
         }
+    },
+
+    "cleanup_test_file": {
+        "description": "Delete a temporary test file from an allowed cleanup directory.",
+        "permission_level": "medium",
+        "args": {
+            "path": "Relative path to the test file."
+        }
     }
 }
 

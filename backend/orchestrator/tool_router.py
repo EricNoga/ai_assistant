@@ -9,6 +9,7 @@ from backend.tools.media_tools import create_media_project
 from backend.tools.media_workflow import create_media_package
 from backend.tools.cybersecurity_tools import analyze_security_log
 from backend.tools.security_reports import save_security_report
+from backend.tools.cleanup_tools import cleanup_test_file
 
 from backend.tools.registry import get_tool_permission_level
 
@@ -21,7 +22,8 @@ TOOL_FUNCTIONS = {
     "create_media_project": create_media_project,
     "create_media_package": create_media_package,
     "analyze_security_log": analyze_security_log,
-    "save_security_report": save_security_report
+    "save_security_report": save_security_report,
+    "cleanup_test_file": cleanup_test_file
 }
 
 
@@ -110,6 +112,11 @@ def run_tool(tool_name: str, args: dict):
                 args.get("findings", ""),
                 args.get("severity", "Low"),
                 args.get("recommendations", "")
+            )
+
+        if tool_name == "cleanup_test_file":
+            return TOOL_FUNCTIONS[tool_name](
+                args.get("path", "")
             )
 
     except Exception as e:
