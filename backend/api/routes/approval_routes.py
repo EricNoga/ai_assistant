@@ -8,6 +8,10 @@ from backend.security.approval_manager import (
     mark_executed
 )
 
+from backend.security.approval_audit import (
+    list_approval_audit_events
+)
+
 from backend.orchestrator.tool_router import (
     run_tool_with_approval_override
 )
@@ -18,10 +22,24 @@ router = APIRouter(
 )
 
 
+APPROVAL_STATE_ERRORS = {
+    "approved": "Approval is already approved",
+    "denied": "Approval has been denied and cannot be approved",
+    "executed": "Approval has already been executed"
+}
+
+
 @router.get("/approvals")
 async def approvals():
     return {
         "approvals": list_approvals()
+    }
+
+
+@router.get("/approvals/audit")
+async def approval_audit():
+    return {
+        "events": list_approval_audit_events()
     }
 
 
@@ -34,14 +52,27 @@ async def approval_detail(approval_id: str):
 
 @router.post("/approvals/{approval_id}/approve")
 async def approve_approval(approval_id: str):
-    approval = approve_request(
+    current = get_approval(
         approval_id
     )
 
-    if not approval:
+    if not current:
         return {
             "error": "Approval not found"
         }
+
+    if current["status"] != "pending":
+        return {
+            "error": APPROVAL_STATE_ERRORS.get(
+                current["status"],
+                "Approval cannot be approved"
+            ),
+            "approval": current
+        }
+
+    approval = approve_request(
+        approval_id
+    )
 
     return {
         "approval": approval
@@ -50,14 +81,24 @@ async def approve_approval(approval_id: str):
 
 @router.post("/approvals/{approval_id}/deny")
 async def deny_approval(approval_id: str):
-    approval = deny_request(
+    current = get_approval(
         approval_id
     )
 
-    if not approval:
+    if not current:
         return {
             "error": "Approval not found"
         }
+
+    if current["status"] != "pending":
+        return {
+            "error": "Only pending approvals can be denied",
+            "approval": current
+        }
+
+    approval = deny_request(
+        approval_id
+    )
 
     return {
         "approval": approval
@@ -73,6 +114,18 @@ async def execute_approval(approval_id: str):
     if not approval:
         return {
             "error": "Approval not found"
+        }
+
+    if approval["status"] == "executed":
+        return {
+            "error": "Approval has already been executed",
+            "approval": approval
+        }
+
+    if approval["status"] == "denied":
+        return {
+            "error": "Denied approval cannot be executed",
+            "approval": approval
         }
 
     if approval["status"] != "approved":

@@ -3,6 +3,8 @@ import uuid
 from pathlib import Path
 from datetime import datetime
 
+from backend.security.approval_audit import record_approval_event
+
 
 STATE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "state"
 APPROVALS_FILE = STATE_DIR / "approvals.json"
@@ -66,6 +68,15 @@ def create_approval_request(
         approvals
     )
 
+    record_approval_event(
+        approval_id,
+        "created",
+        {
+            "tool_name": tool_name,
+            "permission_level": permission_level
+        }
+    )
+
     return approval_id
 
 
@@ -89,14 +100,27 @@ def approve_request(
     if approval_id not in approvals:
         return None
 
-    approvals[approval_id]["status"] = "approved"
-    approvals[approval_id]["resolved_at"] = datetime.now().isoformat()
+    approval = approvals[approval_id]
+
+    if approval["status"] != "pending":
+        return approval
+
+    approval["status"] = "approved"
+    approval["resolved_at"] = datetime.now().isoformat()
 
     _save_approvals(
         approvals
     )
 
-    return approvals[approval_id]
+    record_approval_event(
+        approval_id,
+        "approved",
+        {
+            "tool_name": approval["tool_name"]
+        }
+    )
+
+    return approval
 
 
 def deny_request(
@@ -105,14 +129,27 @@ def deny_request(
     if approval_id not in approvals:
         return None
 
-    approvals[approval_id]["status"] = "denied"
-    approvals[approval_id]["resolved_at"] = datetime.now().isoformat()
+    approval = approvals[approval_id]
+
+    if approval["status"] != "pending":
+        return approval
+
+    approval["status"] = "denied"
+    approval["resolved_at"] = datetime.now().isoformat()
 
     _save_approvals(
         approvals
     )
 
-    return approvals[approval_id]
+    record_approval_event(
+        approval_id,
+        "denied",
+        {
+            "tool_name": approval["tool_name"]
+        }
+    )
+
+    return approval
 
 
 def mark_executed(
@@ -122,12 +159,26 @@ def mark_executed(
     if approval_id not in approvals:
         return None
 
-    approvals[approval_id]["status"] = "executed"
-    approvals[approval_id]["executed_at"] = datetime.now().isoformat()
-    approvals[approval_id]["execution_result"] = result
+    approval = approvals[approval_id]
+
+    if approval["status"] != "approved":
+        return approval
+
+    approval["status"] = "executed"
+    approval["executed_at"] = datetime.now().isoformat()
+    approval["execution_result"] = result
 
     _save_approvals(
         approvals
     )
 
-    return approvals[approval_id]
+    record_approval_event(
+        approval_id,
+        "executed",
+        {
+            "tool_name": approval["tool_name"],
+            "result": result
+        }
+    )
+
+    return approval

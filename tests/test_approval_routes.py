@@ -128,6 +128,102 @@ def test_execute_approved_tool_request():
     assert "approval test" in data["result"]["stdout"]
 
 
+def test_approval_cannot_execute_twice():
+    approval_id = _create_high_risk_approval()
+
+    approve_response = client.post(
+        f"/approvals/{approval_id}/approve"
+    )
+
+    assert approve_response.status_code == 200
+
+    first_execute_response = client.post(
+        f"/approvals/{approval_id}/execute"
+    )
+
+    assert first_execute_response.status_code == 200
+
+    second_execute_response = client.post(
+        f"/approvals/{approval_id}/execute"
+    )
+
+    assert second_execute_response.status_code == 200
+
+    data = second_execute_response.json()
+
+    assert "error" in data
+    assert data["error"] == "Approval has already been executed"
+
+
+def test_denied_approval_cannot_execute():
+    approval_id = _create_high_risk_approval()
+
+    deny_response = client.post(
+        f"/approvals/{approval_id}/deny"
+    )
+
+    assert deny_response.status_code == 200
+
+    execute_response = client.post(
+        f"/approvals/{approval_id}/execute"
+    )
+
+    assert execute_response.status_code == 200
+
+    data = execute_response.json()
+
+    assert "error" in data
+    assert data["error"] == "Denied approval cannot be executed"
+
+
+def test_denied_approval_cannot_be_approved():
+    approval_id = _create_high_risk_approval()
+
+    deny_response = client.post(
+        f"/approvals/{approval_id}/deny"
+    )
+
+    assert deny_response.status_code == 200
+
+    approve_response = client.post(
+        f"/approvals/{approval_id}/approve"
+    )
+
+    assert approve_response.status_code == 200
+
+    data = approve_response.json()
+
+    assert "error" in data
+    assert data["error"] == "Approval has been denied and cannot be approved"
+
+
+def test_executed_approval_cannot_be_denied():
+    approval_id = _create_high_risk_approval()
+
+    approve_response = client.post(
+        f"/approvals/{approval_id}/approve"
+    )
+
+    assert approve_response.status_code == 200
+
+    execute_response = client.post(
+        f"/approvals/{approval_id}/execute"
+    )
+
+    assert execute_response.status_code == 200
+
+    deny_response = client.post(
+        f"/approvals/{approval_id}/deny"
+    )
+
+    assert deny_response.status_code == 200
+
+    data = deny_response.json()
+
+    assert "error" in data
+    assert data["error"] == "Only pending approvals can be denied"
+
+
 def test_approve_missing_approval():
     response = client.post(
         "/approvals/not-real/approve"
