@@ -1,14 +1,4 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
-
-def test_high_risk_tool_is_blocked_by_default():
+def test_high_risk_tool_is_blocked_by_default(client):
     response = client.post(
         "/tools/run",
         json={
@@ -29,7 +19,7 @@ def test_high_risk_tool_is_blocked_by_default():
     assert "approval_id" in data["result"]
 
 
-def test_low_risk_tool_is_allowed():
+def test_low_risk_tool_is_allowed(client):
     response = client.post(
         "/tools/run",
         json={

@@ -1,14 +1,4 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
-
-def test_tools_endpoint():
+def test_tools_endpoint(client):
     response = client.get("/tools")
 
     assert response.status_code == 200
@@ -24,7 +14,7 @@ def test_tools_endpoint():
         assert "args" in tool_data
 
 
-def test_tool_names_endpoint():
+def test_tool_names_endpoint(client):
     response = client.get("/tools/names")
 
     assert response.status_code == 200

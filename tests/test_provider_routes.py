@@ -1,14 +1,4 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
-
-def test_providers_endpoint():
+def test_providers_endpoint(client):
     response = client.get("/providers")
 
     assert response.status_code == 200

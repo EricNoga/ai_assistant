@@ -1,3 +1,5 @@
+import pytest
+
 from fastapi.testclient import TestClient
 
 from backend.api.app import create_app
@@ -8,7 +10,8 @@ client = TestClient(
 )
 
 
-def _clear_approval_state():
+@pytest.fixture(autouse=True)
+def clear_approval_state():
     response = client.post(
         "/test-admin/clear-approvals"
     )
@@ -39,8 +42,6 @@ def _create_high_risk_approval():
 
 
 def test_approvals_endpoint():
-    _clear_approval_state()
-
     response = client.get("/approvals")
 
     assert response.status_code == 200
@@ -52,8 +53,6 @@ def test_approvals_endpoint():
 
 
 def test_approval_audit_endpoint():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     response = client.get("/approvals/audit")
@@ -72,8 +71,6 @@ def test_approval_audit_endpoint():
 
 
 def test_approval_specific_audit_endpoint():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     response = client.get(
@@ -99,8 +96,6 @@ def test_approval_specific_audit_endpoint():
 
 
 def test_approval_detail_endpoint():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     response = client.get(
@@ -117,8 +112,6 @@ def test_approval_detail_endpoint():
 
 
 def test_approve_approval_endpoint():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     response = client.post(
@@ -135,8 +128,6 @@ def test_approve_approval_endpoint():
 
 
 def test_deny_approval_endpoint():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     response = client.post(
@@ -153,8 +144,6 @@ def test_deny_approval_endpoint():
 
 
 def test_execute_approval_requires_approval_first():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     response = client.post(
@@ -170,8 +159,6 @@ def test_execute_approval_requires_approval_first():
 
 
 def test_execute_approved_tool_request():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     approve_response = client.post(
@@ -196,8 +183,6 @@ def test_execute_approved_tool_request():
 
 
 def test_approval_cannot_execute_twice():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     approve_response = client.post(
@@ -225,8 +210,6 @@ def test_approval_cannot_execute_twice():
 
 
 def test_denied_approval_cannot_execute():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     deny_response = client.post(
@@ -248,8 +231,6 @@ def test_denied_approval_cannot_execute():
 
 
 def test_denied_approval_cannot_be_approved():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     deny_response = client.post(
@@ -271,8 +252,6 @@ def test_denied_approval_cannot_be_approved():
 
 
 def test_executed_approval_cannot_be_denied():
-    _clear_approval_state()
-
     approval_id = _create_high_risk_approval()
 
     approve_response = client.post(
@@ -300,8 +279,6 @@ def test_executed_approval_cannot_be_denied():
 
 
 def test_approve_missing_approval():
-    _clear_approval_state()
-
     response = client.post(
         "/approvals/not-real/approve"
     )

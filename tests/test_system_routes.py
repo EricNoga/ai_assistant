@@ -1,21 +1,11 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
-
-def test_root_endpoint():
+def test_root_endpoint(client):
     response = client.get("/")
 
     assert response.status_code == 200
     assert response.json()["message"] == "AI Assistant Backend Running"
 
 
-def test_status_endpoint():
+def test_status_endpoint(client):
     response = client.get("/status")
 
     assert response.status_code == 200
@@ -28,7 +18,7 @@ def test_status_endpoint():
     assert "available_tools" in data
 
 
-def test_health_endpoint():
+def test_health_endpoint(client):
     response = client.get("/health")
 
     assert response.status_code == 200

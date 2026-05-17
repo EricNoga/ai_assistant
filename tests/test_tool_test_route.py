@@ -1,14 +1,4 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-
-client = TestClient(
-    create_app()
-)
-
-
-def test_tool_run_endpoint_with_valid_tool():
+def test_tool_run_endpoint_with_valid_tool(client):
     response = client.post(
         "/tools/run",
         json={
@@ -27,7 +17,7 @@ def test_tool_run_endpoint_with_valid_tool():
     assert "result" in data
 
 
-def test_tool_run_endpoint_with_invalid_tool():
+def test_tool_run_endpoint_with_invalid_tool(client):
     response = client.post(
         "/tools/run",
         json={

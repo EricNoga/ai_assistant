@@ -1,12 +1,4 @@
-from fastapi.testclient import TestClient
-
-from backend.api.app import create_app
-
-client = TestClient(
-    create_app()
-)
-
-def test_status_has_provider():
+def test_status_has_provider(client):
     response = client.get("/status")
 
     assert response.status_code == 200
@@ -16,7 +8,8 @@ def test_status_has_provider():
     assert "provider" in data
     assert data["provider"] == "mock"
 
-def test_status_has_valid_providers():
+
+def test_status_has_valid_providers(client):
     response = client.get("/status")
 
     assert response.status_code == 200
